@@ -15,7 +15,7 @@ def two_question_distances(question1, question2, word_vectors, metric='cosine'):
 	question_vec1 = word_vectors.__getitem__(word_array1)
 	question_vec2 = word_vectors.__getitem__(word_array2)
 	distance_matrix = pairwise_distances(question_vec1, question_vec2, metric=metric)
-	print(distance_matrix)	
+	return distance_matrix
 
 def word_question_distances(word, question, word_vectors, metric='cosine'):
 	'''returns a distance matrix of size = [1, words in question]'''
@@ -31,17 +31,23 @@ def single_question_distances(question, word_vectors,  metric='cosine'):
 		raise AssertionError("question cannot be an empty string")
 	question_vec = word_vectors.__getitem__(word_array)
 	distance_matrix = pairwise_distances(question_vec, metric=metric)
-	print(distance_matrix)
+	return distance_matrix
+
+def min_distance(word, question, word_vectors, metric='cosine'):
+	return np.amin(word_question_distances(word, question, word_vectors, metric = metric))
 
 
+
+#TESTS
 word_vectors = load_word_vectors()
 print("two question")
-two_question_distances("banana greetings", "hello", word_vectors)
+print(two_question_distances("banana greetings", "hello", word_vectors))
 	
 print("one question")
-single_question_distances("hello tyrosine dopamine" , word_vectors)
+print(single_question_distances("hello tyrosine dopamine" , word_vectors))
 
 print("word and question")
-word_question_distances("hat", "toque sock dfasfd", word_vectors)
+print(word_question_distances("hat", "toque scarf sock", word_vectors))
+print(min_distance("hat", "toque scarf sock", word_vectors))
 
 
