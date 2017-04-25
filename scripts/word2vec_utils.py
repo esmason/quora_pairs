@@ -21,7 +21,7 @@ def word_question_distances(word, question, word_vectors, metric='cosine'):
 	'''returns a distance matrix of size = [1, words in question]'''
 	return two_question_distances(word, question, word_vectors, metric = metric)
 
-def single_question_distances(question, word_vectors,  metric='cosine'):
+def one_question_distances(question, word_vectors,  metric='cosine'):
 	'''if one question provided, returns distance matrix for all words in question
 	   if 2 questions provided, returns distance for all inter-question combiations'''
 	if not type(question) is str:
@@ -36,18 +36,26 @@ def single_question_distances(question, word_vectors,  metric='cosine'):
 def min_distance(word, question, word_vectors, metric='cosine'):
 	return np.amin(word_question_distances(word, question, word_vectors, metric = metric))
 
+def row_and_col_mins(distance_matrix, nonzero_only = False):
+	'''returns a list of two numpy col vectors, the first vector is the min distances for the question1, the second for question 2'''
+	if nonzero_only:
+		#make all zeros into ones
+		distance_matrix += np.multiply(np.equal(distance_matrix, 0), np.ones(distance_matrix.shape))
+	question1_array = np.amin(distance_matrix, axis = 1)
+	question2_array = np.amin(distance_matrix, axis = 0)
+	return [ question1_array.reshape((question1_array.shape[0], 1)),
+			 question2_array.reshape((question2_array.shape[0], 1)) ]
 
+def get_POS_dict():
+	I_mat = np.eye(39)
+	POS = ['CC', 'CD', 'DT', 'EX', 'FW', 'IN', 'JJ', 'JJR',
+		'JJS', 'LS', 'MD', 'NN', 'NNS', 'NNP', 'NNPS',
+		'PDT', 'POS', 'PRP', 'PRP$', 'RB', 'RBR', 'RBS',
+		'RP', 'SYM', 'TO', 'UH', 'VB', 'VBD', 'VBG', 'VBN',
+		'VBP', 'VBZ', 'WDT', 'WP', 'WP$', 'WRB', 'PERSON'
+		'ORGANIZATION', 'LOCATION']
+	return dict(zip(POS, [row for row in I_mat]))
 
-#TESTS
-word_vectors = load_word_vectors()
-print("two question")
-print(two_question_distances("banana greetings", "hello", word_vectors))
-	
-print("one question")
-print(single_question_distances("hello tyrosine dopamine" , word_vectors))
-
-print("word and question")
-print(word_question_distances("hat", "toque scarf sock", word_vectors))
-print(min_distance("hat", "toque scarf sock", word_vectors))
-
-
+def pos_to_list(pos):
+	'''takes a string of POS and returns a list of string'''
+	return [p for p in pos.split(" ") if len(p) > 0]
