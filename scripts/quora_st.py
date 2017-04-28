@@ -11,8 +11,7 @@ import pandas as pd
 from scipy.spatial.distance import cosine
 from sklearn.metrics import log_loss
 
-# NOTE: If this import fails, you may need to run the following commands:
-#   git submodule init && git submodule update
+import data_utils as du
 import kiros.skipthoughts as st
 
 def load_encoder(model_dir):
@@ -20,19 +19,12 @@ def load_encoder(model_dir):
     en = st.Encoder(model)
     return en
 
-def load_csv(csv_path):
-    # na_filter=False tells pandas to handle empty questions as empty strings, rather than giving them a value of NaN (there are 2 of these in train.csv -- in both cases, question2 is the one that's empty)
-    # encoding='utf8' necessary so that nltk tokenizer doesn't throw errors when it encounters exotic characters
-    # For more info, see: http://pandas.pydata.org/pandas-docs/stable/io.html#dealing-with-unicode-data
-    # ...and on how NLTK handles unicode: http://www.nltk.org/api/nltk.tokenize.html#module-nltk.tokenize
-    return pd.read_csv(csv_path, na_filter=False, encoding='utf8')
-
 def load_quora_data(data_dir):
     train_file = os.path.join(data_dir, 'train.csv')
     test_file = os.path.join(data_dir, 'test.csv')
     
-    train_table = load_csv(train_file)
-    test_table = load_csv(test_file)
+    train_table = du.load_csv(train_file)
+    test_table = du.load_csv(test_file)
 
     return [train_table, test_table]
 
