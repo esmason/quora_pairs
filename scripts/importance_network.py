@@ -1,9 +1,10 @@
 import tensorflow as tf
-from word2vec_utils import one_question_distances, two_question_distances, row_and_col_mins, get_POS_dict, pos_to_list
+from word2vec_utils import *
 import csv
 import numpy as np
 from csv import DictReader
 from word2vec_loader import load_word_vectors
+import time
 
 filename = "../data/cleanTrainHead.csv"
 
@@ -25,29 +26,59 @@ def assemble_row_inputs(row):
 	question1_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS1']) ] )
 	question2_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS2']) ] )
 	POS_mins = np.vstack((question1_POS_mat, question2_POS_mat))
+	#print("POS mins dims :{}".format(POS_mins.shape))
+
 
 	#get the min cos block distances for each word in q1 and q2
-	inter_cos_dist_mat = two_question_distances(q1, q2, word_vectors, metric = 'cosine')
-	q1_cos_mins_in_q2, q2_cos_mins_in_q1 = row_and_col_mins(inter_cos_dist_mat)
+	try:
+		inter_cos_dist_mat = two_question_distances(q1, q2, word_vectors, metric = 'cosine')
+		q1_cos_mins_in_q2, q2_cos_mins_in_q1 = row_and_col_mins(inter_cos_dist_mat)
+	except KeyError:
+		q1_cos_mins_in_q2, q2_cos_mins_in_q1 = two_question_sequential_mins(q1, q2, word_vectors, metric = 'cosine')
 	inter_cos_mins = np.vstack((q1_cos_mins_in_q2, q2_cos_mins_in_q1))
+	#print("inter cos mins dims :{}".format(inter_cos_mins.shape))
+
+
 
 	#get the min city block distances for each word in q1 and q2
-	inter_cb_dist_mat = two_question_distances(q1, q2, word_vectors, metric = 'cityblock')
-	q1_cb_mins_in_q2, q2_cb_mins_in_q1 = row_and_col_mins(inter_cb_dist_mat)
+	try:
+		inter_cb_dist_mat = two_question_distances(q1, q2, word_vectors, metric = 'cityblock')
+		q1_cb_mins_in_q2, q2_cb_mins_in_q1 = row_and_col_mins(inter_cb_dist_mat)
+	except KeyError:
+		q1_cb_mins_in_q2, q2_cb_mins_in_q1 = two_question_sequential_mins(q1, q2, word_vectors, metric = 'cityblock')
 	inter_cb_mins = np.vstack((q1_cb_mins_in_q2, q2_cb_mins_in_q1))
+	#print("inter cb mins dims :{}".format(inter_cb_mins.shape))
+
+
 
 	# get cosine mins within a single question (excluding 0s)
-	q1_only_cos_matrix = one_question_distances(q1, word_vectors, metric = 'cosine')
-	q2_only_cos_matrix = one_question_distances(q2, word_vectors, metric = 'cosine')
-	q1_only_cos_mins = row_and_col_mins(q1_only_cos_matrix, nonzero_only = True)[0]
-	q2_only_cos_mins = row_and_col_mins(q2_only_cos_matrix, nonzero_only = True)[0]
+	try:
+		q1_only_cos_matrix = one_question_distances(q1, word_vectors, metric = 'cosine')
+		q1_only_cos_mins = row_and_col_mins(q1_only_cos_matrix, nonzero_only = True)[0]
+	except KeyError:
+		q1_only_cos_mins = one_question_sequential_mins(q1, word_vectors, metric = 'cosine')
+	try:
+		q2_only_cos_matrix = one_question_distances(q2, word_vectors, metric = 'cosine')
+		q2_only_cos_mins = row_and_col_mins(q2_only_cos_matrix, nonzero_only = True)[0]
+	except KeyError:
+		q2_only_cos_mins = one_question_sequential_mins(q2, word_vectors, metric = 'cosine')
+	#print("intra cos mins dims q1:{} q2{}".format(q1_only_cos_mins.shape, q2_only_cos_mins.shape))
 	intra_cos_mins = np.vstack((q1_only_cos_mins, q2_only_cos_mins))
 
+
 	# get cityblock mins within a single question (excluding 0s)
-	q1_only_cb_matrix = one_question_distances(q1, word_vectors, metric = 'cityblock')
-	q2_only_cb_matrix = one_question_distances(q2, word_vectors, metric = 'cityblock')
-	q1_only_cb_mins = row_and_col_mins(q1_only_cb_matrix, nonzero_only = True)[0]
-	q2_only_cb_mins = row_and_col_mins(q2_only_cb_matrix, nonzero_only = True)[0]
+	try:
+		q1_only_cb_matrix = one_question_distances(q1, word_vectors, metric = 'cityblock')
+		q1_only_cb_mins = row_and_col_mins(q1_only_cb_matrix, nonzero_only = True)[0]
+	except KeyError:
+		q1_only_cb_mins = one_question_sequential_mins(q1, word_vectors, metric = 'cityblock')
+	try:
+		q2_only_cb_matrix = one_question_distances(q2, word_vectors, metric = 'cityblock')
+		q2_only_cb_mins = row_and_col_mins(q2_only_cb_matrix, nonzero_only = True)[0]
+	except KeyError:
+		q2_only_cb_mins = one_question_sequential_mins(q2, word_vectors, metric = 'cityblock')
+	#print("intra cb mins dims q1:{} q2{}".format(q1_only_cb_mins.shape, q2_only_cb_mins.shape))
+
 	intra_cb_mins = np.vstack((q1_only_cb_mins, q2_only_cb_mins))
 
 	return np.transpose(np.hstack((POS_mins, inter_cos_mins, inter_cb_mins, intra_cos_mins, intra_cb_mins)))
@@ -57,6 +88,13 @@ def assemble_row_inputs(row):
 with open(filename) as datafile:
 	reader = DictReader(datafile)
 	for row in reader:
-		input_matrix = assemble_row_inputs(row)
-		#print("input mat shape is {}".format(input_matrix.shape))
-		break #break for testing purposes
+		#handle POS bug
+		if not len(row['POS1'].split(" ")) == len(row['question1'].split(" ")) or not (len(row['POS2'].split(" ")) == len(row['question2'].split(" "))):
+			#print("skipping example because of pos mis-label")
+			continue
+		try:
+			input_matrix = np.hstack((input_matrix, assemble_row_inputs(row)))
+		except:
+			#for first run
+			input_matrix = assemble_row_inputs(row)
+	print("input mat shape is {}".format(input_matrix.shape))
