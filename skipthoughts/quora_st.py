@@ -11,7 +11,9 @@ import pandas as pd
 from scipy.spatial.distance import cosine
 from sklearn import log_loss
 
-import skipthoughts as st
+# NOTE: If this import fails, you may need to run the following commands:
+#   git submodule init && git submodule update
+import kiros.skipthoughts as st
 
 def load_encoder(model_dir):
     # unfortunately the model_dir param is useless at this point
