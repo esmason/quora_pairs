@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--ndev', type=int, default=1e4, help='size of dev set to create')
     parser.add_argument('--nvalid', type=int, default=5e4, help='size of validation set to create')
     parser.add_argument('--output-dir', required=True, help='directory to which to write train.csv, dev.csv, and valid.csv')
-    parser.add_argument('--seed', help='optional random seed to have reproducibility between multiple uses of this tool')
+    parser.add_argument('--seed', type=int, help='optional random seed to have reproducibility between multiple uses of this tool')
     args = parser.parse_args()
 
     data = du.load_csv(args.dataset_file)
