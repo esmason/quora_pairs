@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cosine
-from sklearn import log_loss
+from sklearn.metrics import log_loss
 
 # NOTE: If this import fails, you may need to run the following commands:
 #   git submodule init && git submodule update
