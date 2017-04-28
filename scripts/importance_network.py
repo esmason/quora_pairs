@@ -14,13 +14,18 @@ word_vectors = load_word_vectors()
 POS_dict = get_POS_dict()
 
 def assemble_row_inputs(row):
-	'''returns a matrix where each column is a word in order [q1 words, q2 words]
-		each row is a feature from top to bottom POS/NER tag, inter min cos distance,
-		inter min city-block distance, intra min cos distance (nonzero), intra min
-		city block distance (nonzero only)'''
+	'''returns a matrix where each column is a word in order [ex1_q1 words, ex1_q2 words, ex2_q1 words...]
+		each row is a feature from top to bottom POS/NER tag(39), inter min cos distance(1),
+		inter min city-block distance(1), intra min cos distance (nonzero) (1), intra min
+		city block distance (nonzero only) (1), position in question [0-1] (1), word2vec vector (300)'''
 
 	q1 = row['question1']
 	q2 = row['question2']
+
+	q1_word2vec = question_word2vec(q1, word_vectors)
+	q2_word2vec = question_word2vec(q2, word_vectors)
+	both_word2vec = np.vstack((q1_word2vec, q2_word2vec))
+	#print("shape of both word2vec is {}".format(both_word2vec.shape))
 
 	# get POS matrices for q1 and q2
 	question1_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS1']) ] )
@@ -81,13 +86,25 @@ def assemble_row_inputs(row):
 
 	intra_cb_mins = np.vstack((q1_only_cb_mins, q2_only_cb_mins))
 
-	return np.transpose(np.hstack((POS_mins, inter_cos_mins, inter_cb_mins, intra_cos_mins, intra_cb_mins)))
+	word_positions = np.vstack((word_position_vector(q1), word_position_vector(q2)))
+
+	#print("shape of word positions matrix is {}".format(word_positions.shape))
+
+	return np.transpose(np.hstack((POS_mins,
+								inter_cos_mins,
+								inter_cb_mins,
+								intra_cos_mins,
+								intra_cb_mins,
+								word_positions,
+								both_word2vec)))
 
 
 
 with open(filename) as datafile:
 	reader = DictReader(datafile)
+	counter = 0
 	for row in reader:
+		counter +=1
 		#handle POS bug
 		if not len(row['POS1'].split(" ")) == len(row['question1'].split(" ")) or not (len(row['POS2'].split(" ")) == len(row['question2'].split(" "))):
 			#print("skipping example because of pos mis-label")
@@ -97,4 +114,8 @@ with open(filename) as datafile:
 		except:
 			#for first run
 			input_matrix = assemble_row_inputs(row)
-	print("input mat shape is {}".format(input_matrix.shape))
+		#print("input_matrix shape {}".format(input_matrix.shape))
+	#print("input mat shape is {}".format(input_matrix.shape))
+
+	input_matrix.dump("input_matrix.csv")
+	#print(np.load("input_matrix.csv")[39:,2])

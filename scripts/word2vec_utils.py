@@ -23,7 +23,43 @@ def one_question_sequential_mins(q1, word_vectors, metric = 'cosine'):
 		dict_mins = np.insert(dict_mins, mw[0], average_min)
 	return dict_mins.reshape((dict_mins.shape[0], 1))
 
+def question_word2vec(q1, word_vectors):
+	'''returns the word vectors for the question and if a word is not in the word_vectors
+	dictionary, in it's place return the mean of the other word vectors in the question'''
 
+	array = [w for w in q1.split(" ") if len(w) > 0]
+	question_vec = []
+	for i, word in enumerate(array):
+		try:
+			vector = word_vectors.__getitem__(word).reshape((1, 300))
+			#print("vector shape: {}".format(vector.shape))
+			question_vec.append(vector)
+			try:
+				array_for_mean = np.vstack((array_for_mean, vector))
+			except:
+				array_for_mean = vector
+			#print("array_for_mean shape: {}".format(array_for_mean.shape))
+		except KeyError:
+			question_vec.append(None)
+	mean_vec = np.mean(array_for_mean, axis=0).reshape((1, 300))
+	#print("mean vec shape is {}".format(mean_vec.shape))
+	#initialize return_vec to first element of question_vec (first word vec in q)
+	return_vec = question_vec.pop(0)
+	if return_vec == None:
+		return_vec = mean_vec
+	for word_vec in question_vec:
+		if word_vec == None:
+			word_vec = mean_vec
+		return_vec = np.vstack((return_vec, word_vec))
+	#print("return vec shape is {}".format(return_vec.shape))
+	return return_vec
+
+
+
+
+def word_position_vector(question):
+	words = len([w for w in question.split(" ") if len(w)>0])
+	return np.linspace(0, 1, words).reshape((words, 1))
 
 
 def two_question_sequential_mins(q1, q2, word_vectors, metric = 'cosine'):
