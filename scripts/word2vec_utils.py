@@ -40,15 +40,21 @@ def question_word2vec(q1, word_vectors):
 				array_for_mean = vector
 			#print("array_for_mean shape: {}".format(array_for_mean.shape))
 		except KeyError:
-			question_vec.append(None)
+			if word.isnumeric():
+				question_vec.append(word_vectors.__getitem__('number'))
+			else:
+				question_vec.append(None)
+	if not 'array_for_mean' in locals():
+		print("no words found for q: {}".format(q1))
+		array_for_mean = np.zeros((1,300))
 	mean_vec = np.mean(array_for_mean, axis=0).reshape((1, 300))
 	#print("mean vec shape is {}".format(mean_vec.shape))
 	#initialize return_vec to first element of question_vec (first word vec in q)
 	return_vec = question_vec.pop(0)
-	if return_vec == None:
+	if type(return_vec)== type(None): ###
 		return_vec = mean_vec
 	for word_vec in question_vec:
-		if word_vec == None:
+		if  type(word_vec) == type(None): ###
 			word_vec = mean_vec
 		return_vec = np.vstack((return_vec, word_vec))
 	#print("return vec shape is {}".format(return_vec.shape))
