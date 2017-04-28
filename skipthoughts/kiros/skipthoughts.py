@@ -17,21 +17,14 @@ from nltk.tokenize import word_tokenize
 
 profile = False
 
-#-----------------------------------------------------------------------------#
-# Specify model and table locations here
-#-----------------------------------------------------------------------------#
-path_to_models = '/u/rkiros/public_html/models/'
-path_to_tables = '/u/rkiros/public_html/models/'
-#-----------------------------------------------------------------------------#
-
-path_to_umodel = path_to_models + 'uni_skip.npz'
-path_to_bmodel = path_to_models + 'bi_skip.npz'
-
-
-def load_model():
+def load_model(model_dir):
     """
     Load the model with saved tables
     """
+
+    path_to_umodel = os.path.join(model_dir, 'uni_skip.npz')
+    path_to_bmodel = os.path.join(model_dir, 'bi_skip.npz')
+
     # Load model options
     print 'Loading model parameters...'
     with open('%s.pkl'%path_to_umodel, 'rb') as f:
@@ -56,7 +49,7 @@ def load_model():
 
     # Tables
     print 'Loading tables...'
-    utable, btable = load_tables()
+    utable, btable = load_tables(model_dir)
 
     # Store everything we need in a dictionary
     print 'Packing up...'
@@ -71,14 +64,14 @@ def load_model():
     return model
 
 
-def load_tables():
+def load_tables(path_to_tables):
     """
     Load the tables
     """
     words = []
-    utable = numpy.load(path_to_tables + 'utable.npy')
-    btable = numpy.load(path_to_tables + 'btable.npy')
-    f = open(path_to_tables + 'dictionary.txt', 'rb')
+    utable = numpy.load(os.path.join(path_to_tables, 'utable.npy'))
+    btable = numpy.load(os.path.join(path_to_tables, 'btable.npy'))
+    f = open(os.path.join(path_to_tables, 'dictionary.txt'), 'rb')
     for line in f:
         words.append(line.decode('utf-8').strip())
     f.close()
@@ -94,35 +87,46 @@ class Encoder(object):
 
     def __init__(self, model):
       self._model = model
+      self.d = init_word_dict(model)
 
     def encode(self, X, use_norm=True, verbose=True, batch_size=128, use_eos=False):
       """
       Encode sentences in the list X. Each entry will return a vector
       """
-      return encode(self._model, X, use_norm, verbose, batch_size, use_eos)
+      return encode(self._model, X, self.d, use_norm, verbose, batch_size, use_eos)
 
 
-def encode(model, X, use_norm=True, verbose=True, batch_size=128, use_eos=False):
+def init_word_dict(model):
+    print "Building word dict from table..."
+    d = defaultdict(lambda : 0)
+    for w in model['utable'].keys():
+        d[w] = 1
+    return d
+
+def encode(model, X, word_dict=None, use_norm=True, verbose=True, batch_size=128, use_eos=False):
     """
     Encode sentences in the list X. Each entry will return a vector
     """
     # first, do preprocessing
+    print "...encode: preprocessing..."
     X = preprocess(X)
 
-    # word dictionary and init
-    d = defaultdict(lambda : 0)
-    for w in model['utable'].keys():
-        d[w] = 1
+    # word dict and init
+    if not word_dict:
+        word_dict = init_word_dict(model)
+
     ufeatures = numpy.zeros((len(X), model['uoptions']['dim']), dtype='float32')
     bfeatures = numpy.zeros((len(X), 2 * model['boptions']['dim']), dtype='float32')
 
     # length dictionary
+    print "...encode: building length dict from data..."
     ds = defaultdict(list)
     captions = [s.split() for s in X]
     for i,s in enumerate(captions):
         ds[len(s)].append(i)
 
     # Get features. This encodes by length, in order to avoid wasting computation
+    print "...encode: now getting features..."
     for k in ds.keys():
         if verbose:
             print k
@@ -139,7 +143,7 @@ def encode(model, X, use_norm=True, verbose=True, batch_size=128, use_eos=False)
             for ind, c in enumerate(caps):
                 caption = captions[c]
                 for j in range(len(caption)):
-                    if d[caption[j]] > 0:
+                    if word_dict[caption[j]] > 0:
                         uembedding[j,ind] = model['utable'][caption[j]]
                         bembedding[j,ind] = model['btable'][caption[j]]
                     else:
