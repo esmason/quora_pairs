@@ -20,6 +20,7 @@ class FileWriterStdoutPrinter:
 
     def __enter__(self):
         self.fd = open(self.path, 'w')
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.fd.close()
@@ -37,6 +38,7 @@ def return_0():
 
 def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
     oov_word_freqs = defaultdict(return_0)
+    all_words = defaultdict(return_0)
     oov_counts_per_question = defaultdict(return_0)
     num_tokens = 0
 
@@ -48,6 +50,7 @@ def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
             tokens = q.split()
             num_tokens += len(tokens)
             for w in tokens:
+	        all_words[w] = 1
                 if not w in word_dict:
                     # Count the occurrence of this OOV word
                     oov_word_freqs[w] += 1
@@ -60,7 +63,8 @@ def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
                     quora_data.set_value(i, col_label, orig_text.replace(w, '%<'+w+'>%'))
 
             # Increment the histogram count for questions with this number of OOVs
-            oov_counts_per_question[num_oovs_in_cur_q] += 1
+	    if num_oovs_in_cur_q:
+                oov_counts_per_question[num_oovs_in_cur_q] += 1
 
     # Write everything to disk
     oov_word_fd = open(os.path.join(output_dir, prefix + '_oov_word_freqs.pkl'), 'w')
@@ -75,8 +79,13 @@ def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
     du.write_csv(quora_data, edited_df_file)
 
     # Some summary stats to humor the user
-    writer.emit_line("Num oov words={0} (out of {1}, or {2:.4f}%)".format(len(oov_word_freqs), num_tokens, len(oov_word_freqs)/float(num_tokens)*100))
-    writer.emit_line("Num of q's containing oov words={0} (out of {1}, or {2:.4f}%)".format(len(oov_counts_per_question), len(quora_data)*2, float(len(oov_counts_per_question))/len(quora_data)*2*100))
+    num_oov = sum([v for v in oov_word_freqs.values()])
+    writer.emit_line("Frequency of oov tokens={0} (out of {1} tokens total, or {2:.4f}%)".format(num_oov, num_tokens, float(num_oov)/num_tokens * 100))
+    writer.emit_line("Num unique oov words={0} (out of {1}, or {2:.4f}%)".format(len(oov_word_freqs), len(all_words), len(oov_word_freqs)/float(len(all_words))*100))
+    num_oov_qs = sum([v for v in oov_counts_per_question.values()])
+    writer.emit_line("Num of q's containing oov words={0} (out of {1}, or {2:.4f}%)".format(num_oov_qs, len(quora_data)*2, float(num_oov_qs)/(len(quora_data)*2)*100))
+    oovs_per_q = sum([count * float(num_qs) / (len(quora_data)*2) for count, num_qs in oov_counts_per_question.items()])
+    writer.emit_line("Avg num OOV words per question: {0}".format(oovs_per_q))
 
 def analyze_dict(word_dict, writer):
     writer.emit_line('Word_dict contains {0} unique entries'.format(len(word_dict)))
@@ -86,11 +95,10 @@ def main():
     parser.add_argument('--quora-data-dir', required=True, help='path to the directory containing the quora data')
     parser.add_argument('--st-model-dir', required=True, help='path to the directory containing the skipthoughts model')
     parser.add_argument('--output-dir', default='.', help='path to the directory to write to')
-    parser.add_argument('--prefix', default='st_kiros', help='a prefix by which to uniquely identify the files produced by this script')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
 
-    output_file = os.path.join(args.output_dir, 'word_counts.txt')
+    output_file = os.path.join(args.output_dir, 'oov_stats.txt')
     
     with FileWriterStdoutPrinter(output_file) as writer:
         print "Loading skipthoughts model..."
@@ -103,14 +111,14 @@ def main():
         print "Loading training set..."
         train = du.load_csv(os.path.join(args.quora_data_dir, 'train.csv'))
         writer.emit_line("Analyzing word counts in train.csv...")
-        analyze_oov(word_dict, train, writer, args.output_dir, args.prefix)
+        analyze_oov(word_dict, train, writer, args.output_dir, 'train')
 
         # Be sure to write data to disk for train before moving on to test, which is much bigger
 
         print "Loading test set..."
         test = du.load_csv(os.path.join(args.quora_data_dir, 'test.csv'))
         writer.emit_line("Analyzing word counts in test.csv...")
-        analyze_oov(word_dict, test, writer, args.output_dir, args.prefix)
+        analyze_oov(word_dict, test, writer, args.output_dir, 'test')
 
 
 if __name__ == "__main__":
