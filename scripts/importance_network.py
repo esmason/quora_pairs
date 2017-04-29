@@ -7,6 +7,7 @@ from word2vec_loader import load_word_vectors
 import time
 import pandas as pd
 import multiprocessing as mp
+from data_utils import load_csv
 
 filename = "../data/dataPos.csv"
 
@@ -17,18 +18,28 @@ POS_dict = get_POS_dict()
 
 def assemble_row_inputs(row):
 	'''returns a matrix where each column is a word in order [ex1_q1 words, ex1_q2 words, ex2_q1 words...]
-		each row is a feature from top to bottom POS/NER tag(39), inter min cos distance(1),
+		each row is a feature from top to bottom POS/NER tag(40), inter min cos distance(1),
 		inter min city-block distance(1), intra min cos distance (nonzero) (1), intra min
 		city block distance (nonzero only) (1), position in question [0-1] (1), word2vec vector (300),
-		is_duplicate/ y vector (1), pair id (1)'''
+		is_duplicate/ y vector (1), pair id (1)
+		throws: AssertionError if one of the questions has no words in word2vec'''
 
 	q1 = row['question1']
 	q2 = row['question2']
 
-	q1_word2vec = question_word2vec(q1, word_vectors)
-	q2_word2vec = question_word2vec(q2, word_vectors)
-	both_word2vec = np.vstack((q1_word2vec, q2_word2vec))
+
+
+
+	try:
+		q1_word2vec = question_word2vec(q1, word_vectors)
+		q2_word2vec = question_word2vec(q2, word_vectors)
+		both_word2vec = np.vstack((q1_word2vec, q2_word2vec))
+	except AssertionError:
+		return None
 	#print("shape of both word2vec is {}".format(both_word2vec.shape))
+
+	#see if the word2vec are in the dictionary
+
 
 	# get POS matrices for q1 and q2
 	question1_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS1']) ] )
@@ -95,9 +106,12 @@ def assemble_row_inputs(row):
 
 	is_duplicate = np.ones((word_positions.shape[0],1))*int(row['is_duplicate'])
 
+	question_ids = np.vstack((np.ones((q1_cos_mins_in_q2.shape[0], 1))*int(row['qid1']) ,
+							np.ones((q2_cos_mins_in_q1.shape[0], 1))*int(row['qid2']) ))
+
 	pair_id = np.ones((word_positions.shape[0],1))*int(row['id'])
 
-	return np.transpose(np.hstack((POS_mins,
+	return np.transpose(np.hstack((POS_mins, #NEW used to be 39
 								inter_cos_mins,
 								inter_cb_mins,
 								intra_cos_mins,
@@ -105,31 +119,43 @@ def assemble_row_inputs(row):
 								word_positions,
 								both_word2vec,
 								is_duplicate,
-								pair_id)))
+								question_ids, #NEW
+								pair_id))).astype('float32')
 
 
 
 def process_chunk(sub_frame):
+	#print("starting sub frame")
 	counter = 0
+	word_list = []
+	first_id = 0
 	for i, row in sub_frame.iterrows():
+		if first_id == 0:
+			first_id = row['id']
+			first_question = row['question1']
 		counter +=1
 		#handle POS bug
 		if not len(row['POS1'].split(" ")) == len(row['question1'].split(" ")) or not (len(row['POS2'].split(" ")) == len(row['question2'].split(" "))):
 			#print("skipping example because of pos mis-label")
 			continue
+		row_input = assemble_row_inputs(row)
+		if type(row_input) == type(None):
+			#check to see if invalid question (ie no words in dictionary, or length of question is 0)
+			continue
 		try:
-			input_matrix = np.hstack((input_matrix, assemble_row_inputs(row)))
-		except:
+			input_matrix = np.hstack((input_matrix, row_input))
+		except NameError:
 			#for first run
-			input_matrix = assemble_row_inputs(row)
-		if counter%3000 == 0:
+			input_matrix = row_input
+		if counter%10000 == 0:
 			print(counter)
+	input_matrix.tofile('sub_matrix{}.bin'.format(first_id))
 	return input_matrix
 		#print("input_matrix shape {}".format(input_matrix.shape))
 	#print("input mat shape is {}".format(input_matrix.shape))
 
-dataframe = np.array_split(pd.read_csv(filename), 10)[0]
-print("df shape {}".format(dataframe.shape))
+dataframe = load_csv(filename)
+#print("df shape {}".format(dataframe.shape))
 num_processors = mp.cpu_count()
 chunks = np.array_split(dataframe, num_processors)
 # create our pool with `num_processes` processes
@@ -143,7 +169,6 @@ for result in listResults:
 final_matrix = np.hstack(listResults)
 print(final_matrix.shape)
 
-final_matrix.tofile("name.bin")
-print(np.fromfile("name.bin").reshape(final_matrix.shape))
-print(np.fromfile("name.bin").reshape(final_matrix.shape).shape)
+final_matrix.tofile("name2.bin")
+print(np.fromfile("name2.bin", dtype='float32').dtype)
 #print(np.load("input_matrix.csv")[39:,2])

@@ -166,13 +166,13 @@ def row_and_col_mins(distance_matrix, nonzero_only = False):
 			 question2_array.reshape((question2_array.shape[0], 1)) ]
 
 def get_POS_dict():
-	I_mat = np.eye(39)
+	I_mat = np.eye(40)
 	POS = ['CC', 'CD', 'DT', 'EX', 'FW', 'IN', 'JJ', 'JJR',
 		'JJS', 'LS', 'MD', 'NN', 'NNS', 'NNP', 'NNPS',
 		'PDT', 'POS', 'PRP', 'PRP$', 'RB', 'RBR', 'RBS',
 		'RP', 'SYM', 'TO', 'UH', 'VB', 'VBD', 'VBG', 'VBN',
 		'VBP', 'VBZ', 'WDT', 'WP', 'WP$', 'WRB', 'PERSON',
-		'ORGANIZATION', 'LOCATION']
+		'ORGANIZATION', 'LOCATION', '$']
 	return dict(zip(POS, [row for row in I_mat]))
 
 def pos_to_list(pos):
