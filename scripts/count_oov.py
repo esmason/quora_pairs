@@ -20,18 +20,22 @@ class FileWriterStdoutPrinter:
 
     def emit(self, text):
         print text
-        fd.write(text)
+        self.fd.write(text)
 
     def emit_line(self, text):
         print text
-        fd.write(text + '\n')
+        self.fd.write(text + '\n')
 
-def analyze_oov(word_dict, quora_data, output_dir, prefix):
-    oov_word_freqs = defaultdict(lambda : 0)
-    oov_counts_per_question = defaultdict(lambda : 0)
+def return_0():
+    return 0
+
+def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
+    oov_word_freqs = defaultdict(return_0)
+    oov_counts_per_question = defaultdict(return_0)
     num_tokens = 0
 
     for col_label in ['question1', 'question2']:
+        print "  ...now handling " + col_label + "..."
         raw_text = st.preprocess(quora_data[col_label])
         for i, q in enumerate(raw_text):
             num_oovs_in_cur_q = 0
@@ -65,8 +69,8 @@ def analyze_oov(word_dict, quora_data, output_dir, prefix):
     du.write_csv(quora_data, edited_df_file)
 
     # Some summary stats to humor the user
-    writer.emit_line("Num oov words={0} (out of {1}, or {2}%)".format(len(oov_word_freqs), num_tokens, len(oov_word_freqs)/float(num_tokens)))
-    writer.emit_line("Num of q's containing oov words={0} (out of {1}, or {2}%)".format(len(oov_counts_per_question), len(quora_data)*2, float(len(oov_counts_per_question))/len(quora_data)*2))
+    writer.emit_line("Num oov words={0} (out of {1}, or {2:.4f}%)".format(len(oov_word_freqs), num_tokens, len(oov_word_freqs)/float(num_tokens)*100))
+    writer.emit_line("Num of q's containing oov words={0} (out of {1}, or {2:.4f}%)".format(len(oov_counts_per_question), len(quora_data)*2, float(len(oov_counts_per_question))/len(quora_data)*2*100))
 
 def analyze_dict(word_dict, writer):
     writer.emit_line('Word_dict contains {0} unique entries'.format(len(word_dict)))
@@ -76,6 +80,7 @@ def main():
     parser.add_argument('--quora-data-dir', required=True, help='path to the directory containing the quora data')
     parser.add_argument('--st-model-dir', required=True, help='path to the directory containing the skipthoughts model')
     parser.add_argument('--output-dir', default='.', help='path to the directory to write to')
+    parser.add_argument('--prefix', default='st_kiros', help='a prefix by which to uniquely identify the files produced by this script')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
 
@@ -87,19 +92,19 @@ def main():
     print "Initializing skipthoughts word dict..."
     word_dict = st.init_word_dict(model)
     print "Analyzing word dict..."
-    analyze_dict(word_dict, )
+    analyze_dict(word_dict, writer)
 
     print "Loading training set..."
     train = du.load_csv(os.path.join(args.quora_data_dir, 'train.csv'))
     writer.emit_line("Analyzing word counts in train.csv...")
-    analyze_oov(word_dict, train, writer)
+    analyze_oov(word_dict, train, writer, args.output_dir, args.prefix)
 
     # Be sure to write data to disk for train before moving on to test, which is much bigger
 
     print "Loading test set..."
     test = du.load_csv(os.path.join(args.quora_data_dir, 'test.csv'))
     writer.emit_line("Analyzing word counts in test.csv...")
-    analyze_oov(word_dict, test, writer)
+    analyze_oov(word_dict, test, writer, args.output_dir, args.prefix)
 
 
 if __name__ == "__main__":
