@@ -7,7 +7,7 @@ import argparse
 import os
 
 from collections import defaultdict
-import pickle
+import cPickle as pkl
 
 import data_utils as du
 
@@ -16,7 +16,13 @@ import kiros.skipthoughts as st
 class FileWriterStdoutPrinter:
 
     def __init__(self, file_path):
-        self.fd = open(file_path, 'w')
+        self.path = file_path
+
+    def __enter__(self):
+        self.fd = open(self.path, 'w')
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.fd.close()
 
     def emit(self, text):
         print text
@@ -58,11 +64,11 @@ def analyze_oov(word_dict, quora_data, writer, output_dir, prefix):
 
     # Write everything to disk
     oov_word_fd = open(os.path.join(output_dir, prefix + '_oov_word_freqs.pkl'), 'w')
-    pickle.dump(oov_word_freqs, oov_word_fd)
+    pkl.dump(oov_word_freqs, oov_word_fd)
     oov_word_fd.close()
 
     counts_per_q_fd = open(os.path.join(output_dir, prefix + '_oov_per_q.pkl'), 'w')
-    pickle.dump(oov_counts_per_question, counts_per_q_fd)
+    pkl.dump(oov_counts_per_question, counts_per_q_fd)
     counts_per_q_fd.close()
 
     edited_df_file = os.path.join(output_dir, prefix + '_oov_annot.csv')
@@ -85,26 +91,26 @@ def main():
     args = parser.parse_args()
 
     output_file = os.path.join(args.output_dir, 'word_counts.txt')
-    writer = FileWriterStdoutPrinter(output_file)
+    
+    with FileWriterStdoutPrinter(output_file) as writer:
+        print "Loading skipthoughts model..."
+        model = st.load_model(args.st_model_dir)
+        print "Initializing skipthoughts word dict..."
+        word_dict = st.init_word_dict(model)
+        print "Analyzing word dict..."
+        analyze_dict(word_dict, writer)
 
-    print "Loading skipthoughts model..."
-    model = st.load_model(args.st_model_dir)
-    print "Initializing skipthoughts word dict..."
-    word_dict = st.init_word_dict(model)
-    print "Analyzing word dict..."
-    analyze_dict(word_dict, writer)
+        print "Loading training set..."
+        train = du.load_csv(os.path.join(args.quora_data_dir, 'train.csv'))
+        writer.emit_line("Analyzing word counts in train.csv...")
+        analyze_oov(word_dict, train, writer, args.output_dir, args.prefix)
 
-    print "Loading training set..."
-    train = du.load_csv(os.path.join(args.quora_data_dir, 'train.csv'))
-    writer.emit_line("Analyzing word counts in train.csv...")
-    analyze_oov(word_dict, train, writer, args.output_dir, args.prefix)
+        # Be sure to write data to disk for train before moving on to test, which is much bigger
 
-    # Be sure to write data to disk for train before moving on to test, which is much bigger
-
-    print "Loading test set..."
-    test = du.load_csv(os.path.join(args.quora_data_dir, 'test.csv'))
-    writer.emit_line("Analyzing word counts in test.csv...")
-    analyze_oov(word_dict, test, writer, args.output_dir, args.prefix)
+        print "Loading test set..."
+        test = du.load_csv(os.path.join(args.quora_data_dir, 'test.csv'))
+        writer.emit_line("Analyzing word counts in test.csv...")
+        analyze_oov(word_dict, test, writer, args.output_dir, args.prefix)
 
 
 if __name__ == "__main__":
