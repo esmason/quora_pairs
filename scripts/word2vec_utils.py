@@ -26,8 +26,12 @@ def one_question_sequential_mins(q1, word_vectors, metric = 'cosine'):
 def question_word2vec(q1, word_vectors):
 	'''returns the word vectors for the question and if a word is not in the word_vectors
 	dictionary, in it's place return the mean of the other word vectors in the question'''
-
-	array = [w for w in q1.split(" ") if len(w) > 0]
+	words_in_dict = 0
+	try:
+		array = [w for w in q1.split(" ") if len(w) > 0]
+	except AttributeError:
+		print("non-string {}".format(q1) )
+		raise AttributeError
 	question_vec = []
 	for i, word in enumerate(array):
 		try:
@@ -39,14 +43,15 @@ def question_word2vec(q1, word_vectors):
 			except:
 				array_for_mean = vector
 			#print("array_for_mean shape: {}".format(array_for_mean.shape))
+			words_in_dict += 1
 		except KeyError:
 			if word.isnumeric():
 				question_vec.append(word_vectors.__getitem__('number'))
 			else:
 				question_vec.append(None)
-	if not 'array_for_mean' in locals():
+	if words_in_dict == 0:
 		print("no words found for q: {}".format(q1))
-		array_for_mean = np.zeros((1,300))
+		raise AssertionError()
 	mean_vec = np.mean(array_for_mean, axis=0).reshape((1, 300))
 	#print("mean vec shape is {}".format(mean_vec.shape))
 	#initialize return_vec to first element of question_vec (first word vec in q)
