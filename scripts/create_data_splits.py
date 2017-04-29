@@ -3,7 +3,7 @@ import argparse
 
 import data_utils as du
 
-# TODO: Take into account the uneven distribution of labels in the Kaggle public leaderboard, which is approximately 46.3% "is_duplicate" (label of 1)
+# TODO: Take into account the uneven distribution of labels in the Kaggle public leaderboard, which is approximately 17.46% "is_duplicate" (label of 1)
 # More on that can be found here: https://www.kaggle.com/davidthaler/quora-question-pairs/how-many-1-s-are-in-the-public-lb
 
 def main():
