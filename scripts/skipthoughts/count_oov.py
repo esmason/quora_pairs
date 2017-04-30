@@ -12,7 +12,7 @@ import cPickle as pkl
 import data_utils as du
 import logging_utils as log
 
-import kiros.skipthoughts as st
+import skipthoughts.skipthoughts as st
 
 def return_0():
     return 0

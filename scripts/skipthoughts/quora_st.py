@@ -12,7 +12,7 @@ from scipy.spatial.distance import cosine
 from sklearn.metrics import log_loss
 
 import data_utils as du
-import kiros.skipthoughts as st
+import skipthoughts.skipthoughts as st
 
 def load_encoder(model_dir):
     model = st.load_model(model_dir)
