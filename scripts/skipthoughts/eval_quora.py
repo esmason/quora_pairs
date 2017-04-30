@@ -85,7 +85,6 @@ from keras.layers.core import Dense, Activation
 from keras.optimizers import Adam
 
 import data_utils as du
-import skipthoughts.skipthoughts as st
 
 def evaluate(encoder, seed=1234, evaltest=False, loc='./data/'):
     """
@@ -127,16 +126,16 @@ def evaluate(encoder, seed=1234, evaltest=False, loc='./data/'):
         testF = np.c_[np.abs(testA - testB), testA * testB]
 
         print 'Evaluating...'
-        r = np.arange(1,6)
+        r = np.arange(0,2)
         yhat = np.dot(bestlrmodel.predict_proba(testF, verbose=2), r)
         pr = pearsonr(yhat, scores[2])[0]
         sr = spearmanr(yhat, scores[2])[0]
         se = mse(yhat, scores[2])
-        ll = log_loss(yhat, scores[2])
+        ll = log_loss(scores[2], np.round(yhat))
         print 'Test Pearson: ' + str(pr)
         print 'Test Spearman: ' + str(sr)
         print 'Test MSE: ' + str(se)
-        print 'Test log loss' + str(ll)
+        print 'Test log loss: ' + str(ll)
 
         return yhat
 
@@ -152,13 +151,20 @@ def prepare_model(ninputs=9600, nclass=2):
     return lrmodel
 
 
+def encode_labels(labels, nclass=2):
+    Y = np.zeros((len(labels), nclass)).astype('int')
+    for j, y in enumerate(labels):
+      # just use the 0-1 label as an index
+      Y[j,y] = 1
+    return Y
+
 def train_model(lrmodel, X, Y, devX, devY, devscores):
     """
     Train model, using pearsonr on dev for early stopping
     """
     done = False
     best = -1.0
-    r = np.arange(1,6)
+    r = np.arange(0,2)
     
     while not done:
         # Every 100 epochs, check Pearson on development set
@@ -185,18 +191,18 @@ def load_data(loc='./data/'):
     """
 
     df = du.load_csv(os.path.join(loc, 'train.csv'))
-    trainA = st.preprocess(df['question1'])
-    trainB = st.preprocess(df['question2'])
+    trainA = df['question1']
+    trainB = df['question2']
     trainS = df['is_duplicate']
     
     df = du.load_csv(os.path.join(loc, 'dev.csv'))
-    devA = st.preprocess(df['question1'])
-    devB = st.preprocess(df['question2'])
+    devA = df['question1']
+    devB = df['question2']
     devS = df['is_duplicate']
 
     df = du.load_csv(os.path.join(loc, 'valid.csv'))
-    testA = st.preprocess(df['question1'])
-    testB = (df['question2'])
+    testA = df['question1']
+    testB = df['question2']
     testS = df['is_duplicate']
 
     trainS = [int(s) for s in trainS]
@@ -225,7 +231,7 @@ def main(unused_argv):
     encoder.load_model(bi_config, FLAGS.bi_vocab_file, FLAGS.bi_embeddings_file,
                        FLAGS.bi_checkpoint_path)
 
-  evaluate(encoder, evaltest=True, loc=FLAGS.data_dir)
+  yhat = evaluate(encoder, evaltest=True, loc=FLAGS.data_dir)
 
   encoder.close()
 
