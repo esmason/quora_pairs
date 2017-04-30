@@ -10,28 +10,9 @@ from collections import defaultdict
 import cPickle as pkl
 
 import data_utils as du
+import logging_utils as log
 
 import kiros.skipthoughts as st
-
-class FileWriterStdoutPrinter:
-
-    def __init__(self, file_path):
-        self.path = file_path
-
-    def __enter__(self):
-        self.fd = open(self.path, 'w')
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.fd.close()
-
-    def emit(self, text):
-        print text
-        self.fd.write(text)
-
-    def emit_line(self, text):
-        print text
-        self.fd.write(text + '\n')
 
 def return_0():
     return 0
@@ -100,7 +81,7 @@ def main():
 
     output_file = os.path.join(args.output_dir, 'oov_stats.txt')
     
-    with FileWriterStdoutPrinter(output_file) as writer:
+    with log.FileWriterStdoutPrinter(output_file) as writer:
         print "Loading skipthoughts model..."
         model = st.load_model(args.st_model_dir)
         print "Initializing skipthoughts word dict..."
