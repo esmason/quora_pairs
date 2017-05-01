@@ -196,8 +196,8 @@ q1_list = []
 q2_list = []
 for result in listResults:
 	sub_mat, sub_q1_idx, sub_q2_idx = result
-	sub_q1_idx += np.ones((sub_q1_idx.shape))*counter
-	sub_q2_idx += np.ones((sub_q1_idx.shape))*counter
+	sub_q1_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter, np.nonzero(sub_q1_idx) )
+	sub_q2_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter, np.nonzero(sub_q2_idx))
 	counter += np.amax(sub_q2_idx)
 	mat_list.append(sub_mat)
 	q1_list.append(sub_q1_idx)
