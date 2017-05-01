@@ -9,7 +9,7 @@ import pandas as pd
 import multiprocessing as mp
 from data_utils import load_csv
 
-filename =  "../data/dataPos.csv" #"../data/cleanTrainHead.csv"
+filename =  "../data/cleanTrainHead.csv"
 
 #dist_mat_test = np.array([[0,1],[2,3]])
 #print(row_and_col_mins(dist_mat_test))
@@ -196,9 +196,9 @@ q1_list = []
 q2_list = []
 for result in listResults:
 	sub_mat, sub_q1_idx, sub_q2_idx = result
-	sub_q1_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter, np.nonzero(sub_q1_idx) )
-	sub_q2_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter, np.nonzero(sub_q2_idx))
-	counter += np.amax(sub_q2_idx)
+	sub_q1_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter,  np.not_equal(sub_q1_idx, 0) )
+	sub_q2_idx += np.multiply(np.ones((sub_q1_idx.shape))*counter, np.not_equal(sub_q2_idx, 0))
+	counter = np.amax(sub_q2_idx) + 1
 	mat_list.append(sub_mat)
 	q1_list.append(sub_q1_idx)
 	q2_list.append(sub_q2_idx)
@@ -207,6 +207,8 @@ final_q1 = np.vstack(q1_list).astype('float32')
 final_q2 = np.vstack(q2_list).astype('float32')
 
 
+print(final_q1.shape)
+print(final_q2.shape)
 
 
 final_matrix.tofile("name_lol.bin")
