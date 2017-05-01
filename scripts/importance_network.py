@@ -9,12 +9,19 @@ import pandas as pd
 import multiprocessing as mp
 from data_utils import load_csv
 
-filename = "../data/dataPos.csv"
+filename =  "../data/dataPos.csv" #"../data/cleanTrainHead.csv"
 
 #dist_mat_test = np.array([[0,1],[2,3]])
 #print(row_and_col_mins(dist_mat_test))
 word_vectors = load_word_vectors()
 POS_dict = get_POS_dict()
+
+def trim_q(q):
+	q_arr = q.split(" ")
+	if len(q_arr) > 30:
+		q_arr = q_arr[:30]
+	trimmed_q = " ".join(q_arr)
+	return trimmed_q
 
 def assemble_row_inputs(row):
 	'''returns a matrix where each column is a word in order [ex1_q1 words, ex1_q2 words, ex2_q1 words...]
@@ -27,6 +34,9 @@ def assemble_row_inputs(row):
 	q1 = row['question1']
 	q2 = row['question2']
 
+	#truncate q1/ q2 at 30 words
+	q1 = trim_q(q1)
+	q2 = trim_q(q2)
 
 
 
@@ -122,35 +132,52 @@ def assemble_row_inputs(row):
 								question_ids, #NEW
 								pair_id))).astype('float32')
 
+def idx_vec(counter, words):
+	if words >= 30:
+		q_idx = np.linspace(counter, counter + 30 - 1, 30, dtype='float32').reshape(1, 30)
+		counter += 30
+	else:
+		q_idx = np.hstack( (np.linspace(counter, counter + words-1, words, dtype='float32').reshape(1,words) ,
+		 					np.zeros(( 1, 30-words), dtype='float32')))
+		counter += words
+	return (counter, q_idx)
 
 
 def process_chunk(sub_frame):
 	#print("starting sub frame")
-	counter = 0
+	counter = 1
 	word_list = []
 	first_id = 0
+	input_matrix = np.zeros((348, 1))
+	q1_idx = np.zeros((1, 30))
+	q2_idx = np.zeros((1, 30))
 	for i, row in sub_frame.iterrows():
 		if first_id == 0:
 			first_id = row['id']
 			first_question = row['question1']
-		counter +=1
+		q1_words = len(row['question1'].split(" "))
+		q2_words = len(row['question2'].split(" "))
 		#handle POS bug
-		if not len(row['POS1'].split(" ")) == len(row['question1'].split(" ")) or not (len(row['POS2'].split(" ")) == len(row['question2'].split(" "))):
+		if  (not (len(row['POS1'].split(" ")) == q1_words) or not (len(row['POS2'].split(" ")) == q2_words)):
 			#print("skipping example because of pos mis-label")
 			continue
 		row_input = assemble_row_inputs(row)
 		if type(row_input) == type(None):
 			#check to see if invalid question (ie no words in dictionary, or length of question is 0)
 			continue
-		try:
-			input_matrix = np.hstack((input_matrix, row_input))
-		except NameError:
-			#for first run
-			input_matrix = row_input
+
+		input_matrix = np.hstack((input_matrix, row_input))
+		counter, q1_row_idx = idx_vec(counter, q1_words)
+		counter, q2_row_idx = idx_vec(counter, q2_words)
+		q1_idx = np.vstack((q1_idx, q1_row_idx))
+		q2_idx = np.vstack((q2_idx, q2_row_idx))
+
 		if counter%10000 == 0:
 			print(counter)
-	input_matrix.tofile('sub_matrix{}.bin'.format(first_id))
-	return input_matrix
+	input_matrix.tofile('sub_matrix2_{}.bin'.format(first_id))
+	q1_idx.tofile('sub_q1_{}.bin'.format(first_id))
+	q2_idx.tofile('sub_q2_{}.bin'.format(first_id))
+	return (input_matrix, q1_idx[1:,:], q2_idx[1:,:])
 		#print("input_matrix shape {}".format(input_matrix.shape))
 	#print("input mat shape is {}".format(input_matrix.shape))
 
@@ -163,12 +190,28 @@ pool = mp.Pool(processes = num_processors)
 # apply our function to each chunk in the list
 listResults = pool.map(process_chunk, chunks)
 
-# puts everything back together and puts back t oold sorting
+counter = 0
+mat_list = []
+q1_list = []
+q2_list = []
 for result in listResults:
-	print(result.shape)
-final_matrix = np.hstack(listResults)
-print(final_matrix.shape)
+	sub_mat, sub_q1_idx, sub_q2_idx = result
+	sub_q1_idx += np.ones((sub_q1_idx.shape))*counter
+	sub_q2_idx += np.ones((sub_q1_idx.shape))*counter
+	counter += np.amax(sub_q2_idx)
+	mat_list.append(sub_mat)
+	q1_list.append(sub_q1_idx)
+	q2_list.append(sub_q2_idx)
+final_matrix = np.hstack(mat_list).astype('float32')
+final_q1 = np.vstack(q1_list).astype('float32')
+final_q2 = np.vstack(q2_list).astype('float32')
 
-final_matrix.tofile("name2.bin")
-print(np.fromfile("name2.bin", dtype='float32').dtype)
+
+
+
+final_matrix.tofile("name_lol.bin")
+final_q1.tofile("q1_lil.bin")
+final_q2.tofile("q2_lil.bin")
+
+print(np.fromfile("name_lol.bin", dtype='float32').shape)
 #print(np.load("input_matrix.csv")[39:,2])
