@@ -71,6 +71,8 @@ tf.logging.set_verbosity(tf.logging.INFO)
 '''
 Evaluation code for the quora question pairs dataset
 '''
+from time import time
+
 import numpy as np
 import os.path
 from sklearn.metrics import mean_squared_error as mse
@@ -94,9 +96,12 @@ def evaluate(encoder, seed=1234, evaltest=False, loc='./data/'):
     train, dev, test, scores = load_data(loc)
     # train[0], train[1], scores[0] = shuffle(train[0], train[1], scores[0], random_state=seed)
     
+    start_time = time() 
     print 'Computing training skipthoughts...'
     trainA = encoder.encode(train[0], verbose=False, use_eos=True)
     trainB = encoder.encode(train[1], verbose=False, use_eos=True)
+    end_time = time()
+    print "Elapsed time for computing {0} skipthought encodings: {1}".format(len(train), end_time - start_time)
     
     print 'Computing development skipthoughts...'
     devA = encoder.encode(dev[0], verbose=False, use_eos=True)
