@@ -20,4 +20,4 @@ class FileWriterStdoutPrinter:
 
     def emit_line(self, text):
         print text
-        self.fd.write(text + '\n')
+        self.fd.write(str(text) + '\n')
