@@ -191,7 +191,7 @@ def process_chunk(sub_frame):
 dataframe = load_csv(filename)
 #print("df shape {}".format(dataframe.shape))
 num_processors = mp.cpu_count()
-subframe = np.array_split(dataframe, 6)[0]
+subframe = np.array_split(dataframe, 6)[5]
 chunks = np.array_split(subframe, num_processors)
 # create our pool with `num_processes` processes
 pool = mp.Pool(processes = num_processors)
@@ -219,9 +219,9 @@ print(final_q1.shape)
 print(final_q2.shape)
 
 
-final_matrix.tofile("final_gpu_1.bin")
-final_q1.tofile("q1_final_1.bin")
-final_q2.tofile("q2_final_1.bin")
+final_matrix.tofile("mat_final_6.bin")
+final_q1.tofile("q1_final_6.bin")
+final_q2.tofile("q2_final_6.bin")
 
-print(np.fromfile("mat_final_1.bin", dtype='float32').shape)
+print(np.fromfile("mat_final_6.bin", dtype='float32').shape)
 #print(np.load("input_matrix.csv")[39:,2])
