@@ -9,19 +9,20 @@ import pandas as pd
 import multiprocessing as mp
 from data_utils import load_csv
 
-filename =  "../data/cleanTrainHead.csv"
+filename =  "../data/dataPos.csv"
 
 #dist_mat_test = np.array([[0,1],[2,3]])
 #print(row_and_col_mins(dist_mat_test))
 word_vectors = load_word_vectors()
 POS_dict = get_POS_dict()
 
-def trim_q(q):
+def trim_q(q, pos_list):
 	q_arr = q.split(" ")
 	if len(q_arr) > 30:
 		q_arr = q_arr[:30]
+		pos_list = pos_list[:30]
 	trimmed_q = " ".join(q_arr)
-	return trimmed_q
+	return trimmed_q, pos_list
 
 def assemble_row_inputs(row):
 	'''returns a matrix where each column is a word in order [ex1_q1 words, ex1_q2 words, ex2_q1 words...]
@@ -35,8 +36,8 @@ def assemble_row_inputs(row):
 	q2 = row['question2']
 
 	#truncate q1/ q2 at 30 words
-	q1 = trim_q(q1)
-	q2 = trim_q(q2)
+	q1, pos_list1 = trim_q(q1, pos_to_list(row['POS1']))
+	q2, pos_list2 = trim_q(q2, pos_to_list(row['POS2']))
 
 
 
@@ -52,8 +53,8 @@ def assemble_row_inputs(row):
 
 
 	# get POS matrices for q1 and q2
-	question1_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS1']) ] )
-	question2_POS_mat = np.array( [POS_dict[pos] for pos in pos_to_list(row['POS2']) ] )
+	question1_POS_mat = np.array( [POS_dict[pos] for pos in pos_list1 ] )
+	question2_POS_mat = np.array( [POS_dict[pos] for pos in pos_list2 ] )
 	POS_mins = np.vstack((question1_POS_mat, question2_POS_mat))
 	#print("POS mins dims :{}".format(POS_mins.shape))
 
@@ -121,7 +122,8 @@ def assemble_row_inputs(row):
 
 	pair_id = np.ones((word_positions.shape[0],1))*int(row['id'])
 
-	return np.transpose(np.hstack((POS_mins, #NEW used to be 39
+	try:
+		ret_mat = np.transpose(np.hstack((POS_mins, #NEW used to be 39
 								inter_cos_mins,
 								inter_cb_mins,
 								intra_cos_mins,
@@ -131,6 +133,11 @@ def assemble_row_inputs(row):
 								is_duplicate,
 								question_ids, #NEW
 								pair_id))).astype('float32')
+	except ValueError:
+		print(q1)
+		print(q2)
+		raise ValueError()
+	return ret_mat
 
 def idx_vec(counter, words):
 	if words >= 30:
@@ -174,9 +181,9 @@ def process_chunk(sub_frame):
 
 		if counter%10000 == 0:
 			print(counter)
-	input_matrix.tofile('sub_matrix2_{}.bin'.format(first_id))
-	q1_idx.tofile('sub_q1_{}.bin'.format(first_id))
-	q2_idx.tofile('sub_q2_{}.bin'.format(first_id))
+	#input_matrix.tofile('sub_matrix2_{}.bin'.format(first_id))
+	#q1_idx.tofile('sub_q1_{}.bin'.format(first_id))
+	#q2_idx.tofile('sub_q2_{}.bin'.format(first_id))
 	return (input_matrix, q1_idx[1:,:], q2_idx[1:,:])
 		#print("input_matrix shape {}".format(input_matrix.shape))
 	#print("input mat shape is {}".format(input_matrix.shape))
@@ -184,7 +191,8 @@ def process_chunk(sub_frame):
 dataframe = load_csv(filename)
 #print("df shape {}".format(dataframe.shape))
 num_processors = mp.cpu_count()
-chunks = np.array_split(dataframe, num_processors)
+subframe = np.array_split(dataframe, 6)[0]
+chunks = np.array_split(subframe, num_processors)
 # create our pool with `num_processes` processes
 pool = mp.Pool(processes = num_processors)
 # apply our function to each chunk in the list
@@ -211,9 +219,9 @@ print(final_q1.shape)
 print(final_q2.shape)
 
 
-final_matrix.tofile("name_lol.bin")
-final_q1.tofile("q1_lil.bin")
-final_q2.tofile("q2_lil.bin")
+final_matrix.tofile("final_gpu_1.bin")
+final_q1.tofile("q1_final_1.bin")
+final_q2.tofile("q2_final_1.bin")
 
-print(np.fromfile("name_lol.bin", dtype='float32').shape)
+print(np.fromfile("mat_final_1.bin", dtype='float32').shape)
 #print(np.load("input_matrix.csv")[39:,2])
