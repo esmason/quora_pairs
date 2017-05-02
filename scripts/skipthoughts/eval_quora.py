@@ -85,8 +85,10 @@ from scipy.stats import pearsonr
 from scipy.stats import spearmanr
 from sklearn.utils import shuffle
 
-from keras.models import Sequential
+from keras.models import Model
 from keras.layers.core import Dense, Activation
+from keras.layers import Input
+from keras.layers.merge import concatenate
 from keras.optimizers import Adam
 
 import data_utils as du
@@ -111,7 +113,7 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
       trainA = encoder.encode(train[0], verbose=False, use_eos=True)
       trainB = encoder.encode(train[1], verbose=False, use_eos=True)
       end = time()
-      log.emit_line("Computing skipthoughts for {0} training examples took {1}s".format(len(trainA), end - start))
+      logger.emit_line("Computing skipthoughts for {0} training examples took {1}s".format(len(trainA), end - start))
 
       print 'Computing development skipthoughts...'
       devA = encoder.encode(dev[0], verbose=False, use_eos=True)
@@ -132,7 +134,7 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
       testY = scores[2]
 
       print 'Compiling model...'
-      lrmodel = prepare_model(ninputs=trainF.shape[1])
+      lrmodel = prepare_model(trainA.shape[1])
 
       print 'Training...'
       bestlrmodel = train_model(lrmodel, 
@@ -175,19 +177,16 @@ def prepare_model(thought_dim):
     q1 = Input(shape=(thought_dim,))
     q2 = Input(shape=(thought_dim,))
 
-    merged = keras.layers.merge.Concatenate([q1, q2], axis=-1)
+    merged = concatenate([q1, q2])
     intermediate = Dense(400, activation='relu')(merged)
     predictions = Dense(1, activation='sigmoid')(intermediate)
 
     model = Model(inputs=[q1, q2], outputs=predictions)
 
-    # lrmodel.add(Dense(input_dim=ninputs, output_dim=nclass))
-    lrmodel.add(Activation('softmax'))
-    lrmodel.compile(loss='categorical_crossentropy', optimizer='adam')
     model.compile(optimizer='adam',
               loss='binary_crossentropy',
               metrics=['binary_crossentropy'])
-    return lrmodel
+    return model
 
 
 def encode_labels(labels, nclass=2):
