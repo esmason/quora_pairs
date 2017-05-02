@@ -40,6 +40,7 @@ import tensorflow as tf
 from skip_thoughts import skip_thoughts_model
 from skip_thoughts.data import special_words
 
+MAX_SENTENCE_LENGTH = 40
 
 def _pad(seq, target_len):
   """Pads a sequence of word embeddings up to the target length.
@@ -83,8 +84,11 @@ def _batch_and_pad(sequences):
   """
   batch_embeddings = []
   batch_mask = []
-  batch_len = max([len(seq) for seq in sequences])
+  batch_len = min(max([len(seq) for seq in sequences]), MAX_SENTENCE_LENGTH)
   for seq in sequences:
+    if len(seq) > MAX_SENTENCE_LENGTH:
+        # Truncate sentences that are too long
+        seq = seq[:MAX_SENTENCE_LENGTH]
     embeddings, mask = _pad(seq, batch_len)
     batch_embeddings.append(embeddings)
     batch_mask.append(mask)

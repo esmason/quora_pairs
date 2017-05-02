@@ -72,6 +72,8 @@ tf.logging.set_verbosity(tf.logging.INFO)
 '''
 Evaluation code for the quora question pairs dataset
 '''
+from time import time
+
 import numpy as np
 import os
 import os.path
@@ -95,8 +97,8 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
     Run experiment
 
     output_dir specifies distination for saving log file as well as model 
-
     """
+
     log_file = os.path.join(output_dir, 'logs.txt')
     with log.FileWriterStdoutPrinter(log_file) as logger:
 
@@ -109,8 +111,8 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
       trainA = encoder.encode(train[0], verbose=False, use_eos=True)
       trainB = encoder.encode(train[1], verbose=False, use_eos=True)
       end = time()
-      log.emit_line("Computing skipthoughts for {0} training examples took {1}s".format(len(trainA), end - start)
-      
+      log.emit_line("Computing skipthoughts for {0} training examples took {1}s".format(len(trainA), end - start))
+
       print 'Computing development skipthoughts...'
       devA = encoder.encode(dev[0], verbose=False, use_eos=True)
       devB = encoder.encode(dev[1], verbose=False, use_eos=True)
@@ -119,19 +121,23 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
       # TODO: Change so that distance function is a fully-connected neural net where params are shared across indices of the two question vectors
       # trainF = np.c_[np.abs(trainA - trainB), trainA * trainB]
       # devF = np.c_[np.abs(devA - devB), devA * devB]
-      trainF = np.c_[trainA, trainB]
-      devF = np.c_[devA, devB]
+      # trainF = np.dstack[trainA, trainB]
+      # devF = np.dstack[devA, devB]
 
       print 'Encoding labels...'
-      trainY = encode_labels(scores[0])
-      devY = encode_labels(scores[1])
+      # trainY = encode_labels(scores[0])
+      # devY = encode_labels(scores[1])      
+      trainY = scores[0]
+      devY = scores[1]
+      testY = scores[2]
 
       print 'Compiling model...'
       lrmodel = prepare_model(ninputs=trainF.shape[1])
 
       print 'Training...'
-      bestlrmodel = train_model(lrmodel, trainF, trainY, 
-                                devF, devY, scores[1], 
+      bestlrmodel = train_model(lrmodel, 
+                                trainA, trainB, trainY, 
+                                devA, devB, devY, 
                                 logger, output_dir)
 
       print 'Saving best model...'
@@ -144,31 +150,43 @@ def evaluate(encoder, output_dir, seed=1234, evaltest=False, loc='./data/'):
 
           print 'Computing test feature combinations...'
           # testF = np.c_[np.abs(testA - testB), testA * testB]
-          testF = np.c_[testA, testB]
+          # testF = np.dstack[testA, testB]
 
           print 'Evaluating...'
-          r = np.arange(0,2)
-          yhat = np.dot(bestlrmodel.predict_proba(testF, verbose=2), r)
-          pr = pearsonr(yhat, scores[2])[0]
-          sr = spearmanr(yhat, scores[2])[0]
-          se = mse(yhat, scores[2])
-          ll = log_loss(scores[2], np.round(yhat))
-          logger.emit_line('Test Pearson: ' + str(pr))
-          logger.emit_line('Test Spearman: ' + str(sr))
-          logger.emit_line('Test MSE: ' + str(se))
+          # r = np.arange(0,2)
+          # yhat = np.dot(bestlrmodel.predict_proba(testF, verbose=2), r)
+          # pr = pearsonr(yhat, scores[2])[0]
+          # sr = spearmanr(yhat, scores[2])[0]
+          # se = mse(yhat, scores[2])
+          # ll = log_loss(scores[2], np.round(yhat))
+          _, ll = bestlrmodel.evaluate([testA, testB], testY, batch_size=64, verbose=2)
+          # logger.emit_line('Test Pearson: ' + str(pr))
+          # logger.emit_line('Test Spearman: ' + str(sr))
+          # logger.emit_line('Test MSE: ' + str(se))
           logger.emit_line('Test log loss: ' + str(ll))
 
-    return yhat
+    # return yhat
 
 
-def prepare_model(ninputs=9600, nclass=2):
+def prepare_model(thought_dim):
     """
     Set up and compile the model architecture (Logistic regression)
     """
-    lrmodel = Sequential()
-    lrmodel.add(Dense(input_dim=ninputs, output_dim=nclass))
+    q1 = Input(shape=(thought_dim,))
+    q2 = Input(shape=(thought_dim,))
+
+    merged = keras.layers.merge.Concatenate([q1, q2], axis=-1)
+    intermediate = Dense(400, activation='relu')(merged)
+    predictions = Dense(1, activation='sigmoid')(intermediate)
+
+    model = Model(inputs=[q1, q2], outputs=predictions)
+
+    # lrmodel.add(Dense(input_dim=ninputs, output_dim=nclass))
     lrmodel.add(Activation('softmax'))
     lrmodel.compile(loss='categorical_crossentropy', optimizer='adam')
+    model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['binary_crossentropy'])
     return lrmodel
 
 
@@ -179,37 +197,33 @@ def encode_labels(labels, nclass=2):
       Y[j,y] = 1
     return Y
 
-def train_model(lrmodel, X, Y, devX, devY, devscores, logger, output_dir):
+def train_model(lrmodel, 
+                trainA, trainB, trainY, 
+                devA, devB, devY,
+                logger, output_dir):
     """
     Train model, using pearsonr on dev for early stopping
     """
     done = False
     best = -1.0
-    r = np.arange(0,2)
     chkpt_counter = 0
     
     while not done:
-        # Every 100 epochs, check Pearson on development set
-        lrmodel.fit(X, Y, verbose=2, shuffle=False, validation_data=(devX, devY))
-        yhat = np.dot(lrmodel.predict_proba(devX, verbose=2), r)
-        score = pearsonr(yhat, devscores)[0]
-        if score > best + 0.01:
-            logger.emit_line("({0}) Pearson:{1}".format(chkpt_counter, score))
-            ll = log_loss(devY, np.round(yhat)) 
+        lrmodel.fit([trainA, trainB], trainY, batch_size=64, 
+          verbose=2, shuffle=False, validation_data=([devA, devB], devY))
+        _, ll = lrmodel.evaluate([devA, devB], devY, batch_size=64, verbose=2)
+        if ll < best - 0.005:
             logger.emit_line("({0}) Log_loss:{1}".format(chkpt_counter, ll))
             chkpt_counter += 1
             if chkpt_counter % 5 == 0:
               lrmodel.save(os.path.join(output_dir, 'lrmodel_{0}.h5'.format(chkpt_counter)))
             best = score
-            bestlrmodel = prepare_model(ninputs=X.shape[1])
+            bestlrmodel = prepare_model(trainA.shape[1])
             bestlrmodel.set_weights(lrmodel.get_weights())
         else:
             done = True
 
-    yhat = np.dot(bestlrmodel.predict_proba(devX, verbose=2), r)
-    score = pearsonr(yhat, devscores)[0]
-    logger.emit_line('Final Dev Pearson: {0}'.format(score))
-    ll = log_loss(devY, np.round(yhat)) 
+    _, ll = lrmodel.evaluate([devA, devB], devY, batch_size=64, verbose=2)
     logger.emit_line("Final Dev Log_loss: {0}".format(ll))
 
     return bestlrmodel
@@ -263,7 +277,7 @@ def main(unused_argv):
     encoder.load_model(bi_config, FLAGS.bi_vocab_file, FLAGS.bi_embeddings_file,
                        FLAGS.bi_checkpoint_path)
 
-  yhat = evaluate(encoder, FLAGS.output_dir, evaltest=True, loc=FLAGS.data_dir)
+  evaluate(encoder, FLAGS.output_dir, evaltest=True, loc=FLAGS.data_dir)
 
   encoder.close()
 
